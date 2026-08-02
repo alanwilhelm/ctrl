@@ -18,10 +18,11 @@ def test_skill_is_detailed_and_valid() -> None:
     assert 10_000 <= len(content) <= 100_000
 
 
-def test_skill_documents_the_real_v010_surface_and_safety_contract() -> None:
+def test_skill_documents_the_real_surface_and_safety_contract() -> None:
     content = SKILL.read_text(encoding="utf-8")
     for command in (
         "ctrl doctor",
+        "ctrl announce",
         "ctrl list",
         "ctrl status",
         "ctrl read",
@@ -40,6 +41,7 @@ def test_skill_documents_the_real_v010_surface_and_safety_contract() -> None:
         "Dragonslayer",
         "Verification Checklist",
         "Common Pitfalls",
+        "Announcement Workflow",
     ):
         assert required in content
     assert "ctrl admit" not in content
@@ -58,3 +60,17 @@ def test_skill_links_detailed_references() -> None:
     ):
         assert reference in content
         assert (SKILL.parent / reference).is_file()
+
+
+def test_operating_model_defines_announcement_contract() -> None:
+    content = (SKILL.parent / "references/operating-model.md").read_text(
+        encoding="utf-8"
+    )
+    for requirement in (
+        "every coordinator turn end",
+        "worker escalates its blockers to the coordinator",
+        "independently verify any blocker that names a human",
+        "ALL-CLEAR` exactly once",
+        "CTRL owns live surfacing while plandoc owns durable records",
+    ):
+        assert requirement in content

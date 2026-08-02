@@ -66,7 +66,7 @@ def test_cli_help_uses_ctrl_brand() -> None:
     assert result.returncode == 0
     assert result.stdout.startswith("usage: ctrl")
     assert "codex-app-server-control" not in result.stdout
-    for command in ("doctor", "list", "status", "read", "spawn", "send"):
+    for command in ("doctor", "announce", "list", "status", "read", "spawn", "send"):
         assert command in result.stdout
     assert "return compact thread state" in result.stdout
     assert "return full thread payload" in result.stdout

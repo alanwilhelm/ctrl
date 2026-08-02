@@ -30,6 +30,7 @@ def test_readme_documents_only_current_commands() -> None:
     content = README.read_text(encoding="utf-8")
     for command in (
         "ctrl doctor",
+        "ctrl announce",
         "ctrl list",
         "ctrl status",
         "ctrl read",

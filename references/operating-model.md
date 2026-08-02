@@ -16,7 +16,7 @@ Selects admitted work, checks repository state, creates isolated worktrees, assi
 
 ### CTRL
 
-Provides the deterministic local interface to App Server. It translates operator commands into protocol calls and records ergonomic lane aliases. It does not supply judgment or authorization.
+Provides the deterministic local interface to App Server and owns live blocker or gate surfacing. It translates operator commands into protocol calls, records ergonomic lane aliases, and formats stateless announcements. It does not supply judgment or authorization.
 
 ### Codex App Server
 
@@ -88,6 +88,20 @@ new
 ```
 
 CTRL stores aliases with one `lane-` prefix. Both `issue-123` and `lane-issue-123` resolve the same way at the command line.
+
+## Announcement Surfacing
+
+`ctrl announce` closes a visibility gap: a governed blocker can remain buried in thread text for hours without a primary operator signal. It surfaces current state but does not own a durable announcement store or work-item lifecycle.
+
+The operating contract is:
+
+1. At every coordinator turn end, repeat each unresolved `BLOCKER` and `GATE-HOLD` through `ctrl announce`.
+2. A worker escalates its blockers to the coordinator; the worker does not assume its thread text is visible enough.
+3. Before amplification, independently verify any blocker that names a human.
+4. Emit `ALL-CLEAR` exactly once when the corresponding blocker or gate hold resolves; do not repeat it on later turns.
+5. CTRL owns live surfacing while plandoc owns durable records. Record durable blocker and gate history in plandoc, not CTRL.
+
+Announcement output is immediate and local. The command does not contact App Server, inspect thread state, update the lane registry, read or write plandoc, invoke callbacks, or automate tmux panes. Repetition and exactly-once discipline belong to the coordinator operating loop, not hidden CLI state.
 
 ## Coordinator Loop
 

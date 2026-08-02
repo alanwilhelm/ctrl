@@ -70,6 +70,44 @@ Fields:
 
 `registryExists: false` is normal before the first successful spawn. `socketReady: false` blocks all App Server commands.
 
+## `ctrl announce`
+
+```bash
+ctrl announce BLOCKER|GATE-HOLD|ALL-CLEAR \
+  --what TEXT \
+  --needed TEXT \
+  --since TEXT \
+  --owner TEXT \
+  [--json]
+```
+
+Every type requires exactly `--what`, `--needed`, `--since`, and `--owner`. Each value must be nonblank and single-line. Newlines and control characters are rejected before output.
+
+`BLOCKER` and `GATE-HOLD` default to a full-width terminal banner. `ALL-CLEAR` defaults to one loud line containing all four labeled fields. Default human output is never JSON-wrapped.
+
+Use `--json` for an explicit machine-readable form:
+
+```bash
+ctrl announce GATE-HOLD \
+  --what "Release review is pending" \
+  --needed "Approve the exact head" \
+  --since "2026-08-02T14:30:00-07:00" \
+  --owner "release coordinator" \
+  --json
+```
+
+```json
+{
+  "needed": "Approve the exact head",
+  "owner": "release coordinator",
+  "since": "2026-08-02T14:30:00-07:00",
+  "type": "GATE-HOLD",
+  "what": "Release review is pending"
+}
+```
+
+`announce` is socket-independent and stateless. It does not read or write the lane registry, App Server thread state, plandoc, callbacks, or tmux. It does not persist, repeat, deliver, or clear announcements on the operator's behalf.
+
 ## `ctrl list`
 
 ```bash
@@ -204,6 +242,17 @@ Require daemon readiness:
 
 ```bash
 ctrl doctor | jq -e '.socketReady == true and .appServer.status == "running"'
+```
+
+Extract an announcement type without requiring App Server:
+
+```bash
+ctrl announce ALL-CLEAR \
+  --what "Release gate passed" \
+  --needed "Proceed with authorized integration" \
+  --since "2026-08-02T15:00:00-07:00" \
+  --owner "release coordinator" \
+  --json | jq -r .type
 ```
 
 Avoid loops that repeatedly call `send`. Poll only read-only status, use bounded intervals, and stop when state is ambiguous.

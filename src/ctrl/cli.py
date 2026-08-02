@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from ctrl import __version__
+from ctrl.announce import (
+    VALID_ANNOUNCEMENT_TYPES,
+    format_announcement,
+    validate_announcement,
+)
 from ctrl.appserver import AppServerClient, ControlError
 from ctrl.operations import (
     VALID_REASONING_EFFORTS,
@@ -35,6 +41,16 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
 
     commands.add_parser("doctor", help="read local CTRL and App Server health")
+
+    announce = commands.add_parser(
+        "announce", help="surface a blocker, gate hold, or all-clear"
+    )
+    announce.add_argument("kind", choices=VALID_ANNOUNCEMENT_TYPES)
+    announce.add_argument("--what", required=True)
+    announce.add_argument("--needed", required=True)
+    announce.add_argument("--since", required=True)
+    announce.add_argument("--owner", required=True)
+    announce.add_argument("--json", action="store_true", dest="json_output")
 
     list_command = commands.add_parser("list", help="list persisted App Server threads")
     list_command.add_argument("--limit", type=int, default=200)
@@ -96,9 +112,24 @@ def _doctor(socket_path: Path, registry_path: Path) -> dict[str, object]:
 
 def main() -> int:
     args = build_parser().parse_args()
-    socket_path = args.socket.expanduser()
-    registry_path = args.registry.expanduser()
     try:
+        if args.command == "announce":
+            announcement = validate_announcement(
+                args.kind,
+                what=args.what,
+                needed=args.needed,
+                since=args.since,
+                owner=args.owner,
+            )
+            if args.json_output:
+                print(json.dumps(announcement.as_dict(), indent=2, sort_keys=True))
+            else:
+                width = shutil.get_terminal_size(fallback=(80, 24)).columns
+                print(format_announcement(announcement, width=width))
+            return 0
+
+        socket_path = args.socket.expanduser()
+        registry_path = args.registry.expanduser()
         if args.command == "doctor":
             output = _doctor(socket_path, registry_path)
         else:

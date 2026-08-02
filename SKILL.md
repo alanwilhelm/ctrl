@@ -1,6 +1,6 @@
 ---
 name: ctrl
-description: "Use when operating persistent Codex App Server threads through the CTRL command, including health checks, discovery, lane registration, safe worker spawning, status inspection, reads, and bounded message delivery."
+description: "Use when operating persistent Codex App Server threads or surfacing live blocker and gate state through CTRL, including announcements, health checks, discovery, lane registration, safe worker spawning, status inspection, reads, and bounded message delivery."
 version: 0.1.0
 author: CTRL contributors
 license: MIT
@@ -15,9 +15,9 @@ metadata:
 
 ## Overview
 
-CTRL is the local operator interface for persistent Codex App Server threads. It connects directly to the managed App Server Unix socket, exposes a small JSON-producing command surface, and maps memorable lane names to persistent Codex thread IDs. Use it when a coordinator needs to inspect or drive several App Server workers without treating tmux panes as machine state.
+CTRL is the local operator interface for persistent Codex App Server threads and live blocker or gate surfacing. Its thread commands connect directly to the managed App Server Unix socket and map memorable lane names to persistent Codex thread IDs. `ctrl announce` is a local, human-first command that does not use the socket or registry.
 
-The current release is deliberately narrow. It provides health discovery, thread listing, compact status, full thread reads, persistent thread creation, and start-or-steer message delivery. It does not yet provide durable work-item admission, leases, heartbeats, interruption, verification records, or automated completion handling. Never infer those capabilities from the broader architecture direction.
+The current release is deliberately narrow. It provides live announcements, health discovery, thread listing, compact status, full thread reads, persistent thread creation, and start-or-steer message delivery. It does not provide durable announcement storage, work-item admission, leases, heartbeats, interruption, verification records, or automated completion handling. Never infer those capabilities from the broader architecture direction.
 
 CTRL is a client, not another App Server daemon. Installing or invoking it does not replace, restart, stop, or reconfigure the managed daemon. Read-only commands can be safely tested against a working daemon. Commands that create a thread or deliver a message change App Server state and must follow the ownership and worktree rules in this skill.
 
@@ -34,6 +34,7 @@ Skill:           ctrl
 
 Use this skill when:
 
+- surfacing a live `BLOCKER`, `GATE-HOLD`, or `ALL-CLEAR` in the primary operator view;
 - checking whether the local managed Codex App Server is healthy;
 - discovering persisted or currently loaded threads;
 - inspecting the exact state of a known worker;
@@ -47,6 +48,7 @@ Use this skill when:
 
 Do not use CTRL:
 
+- as the durable record of a blocker or gate decision;
 - as a replacement for `codex app-server daemon` lifecycle commands;
 - to send speculative work into a thread you do not own;
 - to steer a thread concurrently with another controller or human operator;
@@ -130,6 +132,7 @@ For complete installation and update commands, read [`references/command-referen
 | Command | Mutates CTRL registry | Mutates App Server state | Starts/steers execution | Safe first probe |
 |---|---:|---:|---:|---:|
 | `ctrl doctor` | no | no | no | yes |
+| `ctrl announce TYPE ...` | no | no | no | yes |
 | `ctrl list` | no | no | no | yes |
 | `ctrl status THREAD` | no | no | no | yes |
 | `ctrl read THREAD` | no | no | no | yes, but output can be large |
@@ -137,6 +140,22 @@ For complete installation and update commands, read [`references/command-referen
 | `ctrl send ...` | no | yes | yes | no |
 
 Treat `ctrl spawn` as state creation and `ctrl send` as execution authority. Neither command should be run merely to see whether CTRL works; use `doctor`, `list`, and `status` for non-disruptive validation.
+
+## Live Announcement Workflow
+
+Use exactly one supported type and all four fields:
+
+```bash
+ctrl announce BLOCKER \
+  --what "Deploy proof is missing" \
+  --needed "Verify the immutable digest" \
+  --since "2026-08-02T14:30:00-07:00" \
+  --owner "release coordinator"
+```
+
+Each field must be nonblank, single-line text without control characters. `BLOCKER` and `GATE-HOLD` use the default full-width banner; `ALL-CLEAR` uses one loud line. Use `--json` only for explicit machine consumption. The command never connects to App Server or reads or writes the lane registry, thread state, plandoc, callbacks, or tmux.
+
+Follow the repetition, worker escalation, human-name verification, exactly-once all-clear, and record-ownership rules in [`references/operating-model.md`](references/operating-model.md#announcement-surfacing). Announcements make live state visible; they do not create durable state.
 
 ## Preflight Before Any Stateful Command
 

@@ -2,17 +2,18 @@
 
 **A small, scriptable control plane for persistent Codex App Server threads.**
 
-CTRL gives humans and coordinating agents one consistent command-line interface for discovering, inspecting, creating, and messaging persistent Codex workers. It talks directly to the local managed Codex App Server over its Unix socket and returns structured JSON.
+CTRL gives humans and coordinating agents one consistent command-line interface for discovering, inspecting, creating, and messaging persistent Codex workers, plus a socket-independent command for surfacing blockers and gate state. App Server operations return structured JSON; announcements default to directly visible terminal output.
 
 ```bash
 ctrl doctor
+ctrl announce BLOCKER --what "Deploy proof is missing" --needed "Verify the digest" --since "2026-08-02T14:30:00-07:00" --owner "release coordinator"
 ctrl list --limit 10
 ctrl status issue-123
 ctrl spawn /path/to/worktree --lane issue-123
 ctrl send issue-123 "Implement the accepted scope and report proof"
 ```
 
-> **Project status:** early and operational. Version 0.1.0 supports the six commands documented below and has been exercised against Codex App Server 0.146.0 on Linux. The current release is intentionally smaller than the intended control plane; see [Current scope](#current-scope) before building automation around it.
+> **Project status:** early and operational. Version 0.1.0 supports the seven commands documented below and has been exercised against Codex App Server 0.146.0 on Linux. The current release is intentionally smaller than the intended control plane; see [Current scope](#current-scope) before building automation around it.
 
 ## What CTRL is
 
@@ -26,11 +27,14 @@ CTRL provides:
 - memorable lane aliases for newly created threads;
 - explicit model and reasoning selection at thread creation;
 - safe state-aware delivery: resume, start, or steer;
-- JSON output for both humans and automation;
+- prominent live blocker, gate-hold, and all-clear output;
+- JSON output for App Server operations and explicit announcement automation;
 - recursive redaction of credential-shaped output;
 - a detailed operating skill for Hermes and Codex agents.
 
 CTRL is a client. It does not replace, supervise, restart, or reconfigure Codex App Server.
+
+`ctrl announce` is deliberately local: it does not connect to App Server or read or write the lane registry, thread state, plandoc, callbacks, or tmux.
 
 ### The problem in one picture
 
@@ -254,6 +258,7 @@ The result reports `started` or `steered` and the turn ID. That proves receipt, 
 | Command | Purpose | App Server mutation | Executes work |
 |---|---|---:|---:|
 | `ctrl doctor` | Read local CTRL and daemon health | no | no |
+| `ctrl announce TYPE --what ... --needed ... --since ... --owner ...` | Surface live blocker or gate state | no | no |
 | `ctrl list` | List persisted threads and loaded state | no | no |
 | `ctrl status THREAD` | Return compact thread state | no | no |
 | `ctrl read THREAD` | Return the full thread payload | no | no |
@@ -278,6 +283,8 @@ timeout:  15 seconds
 ```
 
 Run `ctrl --help` or see the [complete command reference](references/command-reference.md).
+
+`BLOCKER` and `GATE-HOLD` render as full-width banners. `ALL-CLEAR` renders as one loud line. Add `--json` only when a machine-readable object is required. The [operating model](references/operating-model.md#announcement-surfacing) defines repetition, escalation, verification, and durable-record ownership.
 
 ## Model and reasoning policy
 
@@ -355,6 +362,10 @@ That policy is intentional for trusted workers in isolated worktrees. It also me
 
 An accepted message, idle thread, or worker final response does not prove that code is correct. Inspect the repository and rerun required checks independently.
 
+### Live announcements
+
+Announcements are immediate terminal signals, not stored workflow records. CTRL owns live surfacing; plandoc owns durable records. Do not build retries, callbacks, pane automation, or lifecycle state around `ctrl announce`.
+
 ### Redaction
 
 CTRL recursively redacts credential-shaped keys and text before printing JSON. Redaction is defense in depth, not a reason to publish complete private transcripts.
@@ -371,6 +382,7 @@ CTRL recursively redacts credential-shaped keys and text before printing JSON. R
 │ CTRL                                                     │
 │                                                          │
 │ cli.py        command parsing and output                  │
+│ announce.py   pure announcement validation and formatting │
 │ operations.py thread/lane/start/steer behavior            │
 │ appserver.py  Unix socket + WebSocket JSON-RPC            │
 │ redaction.py  output sanitization                         │
@@ -436,6 +448,7 @@ The attached TUI is interactive, not a passive dashboard. Decide whether CTRL or
 - explicit model and reasoning configuration;
 - automatic resume during message delivery;
 - active-turn steering and idle-turn start;
+- socket-independent blocker, gate-hold, and all-clear surfacing;
 - recursive credential-shaped redaction;
 - structured JSON output;
 - Hermes and Codex operating skill.
@@ -443,6 +456,7 @@ The attached TUI is interactive, not a passive dashboard. Decide whether CTRL or
 ### Not implemented yet
 
 - durable work-item database;
+- durable announcement storage or notification delivery;
 - planning artifact ingestion or admission;
 - controller leases and heartbeats;
 - idempotency keys for stateful operations;
@@ -522,6 +536,7 @@ ctrl/
 │   └── troubleshooting.md
 ├── src/ctrl/
 │   ├── appserver.py
+│   ├── announce.py
 │   ├── cli.py
 │   ├── operations.py
 │   └── redaction.py
