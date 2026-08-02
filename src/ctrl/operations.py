@@ -195,7 +195,12 @@ def spawn_thread(
 def send_message(client: Client, thread_id: str, message: str) -> dict[str, Any]:
     if not message.strip():
         raise ControlError("message is empty")
-    thread = read_thread(client, thread_id)
+    try:
+        thread = read_thread(client, thread_id)
+    except ControlError as exc:
+        if "includeTurns is unavailable before first user message" not in str(exc):
+            raise
+        thread = {"id": thread_id, "status": {"type": "idle"}, "turns": []}
     status = thread.get("status")
     status_type = status.get("type") if isinstance(status, dict) else None
     if status_type == "notLoaded":

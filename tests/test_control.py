@@ -86,6 +86,33 @@ def test_spawn_refuses_missing_directory(tmp_path: Path) -> None:
     assert client.calls == []
 
 
+def test_send_starts_first_turn_when_fresh_thread_cannot_include_turns() -> None:
+    class FreshThreadClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, dict]] = []
+
+        def request(self, method: str, params: dict) -> dict:
+            self.calls.append((method, params))
+            if method == "thread/read":
+                raise ControlError(
+                    "thread/read failed: includeTurns is unavailable before first user message"
+                )
+            if method == "turn/start":
+                return {"turn": {"id": "turn-first"}}
+            raise AssertionError(f"unexpected method: {method}")
+
+    client = FreshThreadClient()
+
+    result = send_message(client, "019abc-fresh", "Run the first bounded task")
+
+    assert [method for method, _ in client.calls] == ["thread/read", "turn/start"]
+    assert result == {
+        "threadId": "019abc-fresh",
+        "delivery": "started",
+        "turnId": "turn-first",
+    }
+
+
 def test_send_resumes_unloaded_thread_then_starts_turn() -> None:
     client = FakeClient(
         {
