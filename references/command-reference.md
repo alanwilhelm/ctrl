@@ -30,10 +30,11 @@ The CLI executable may live under `~/.local/bin/ctrl`; ensure that directory is 
 ## Global Options
 
 ```text
---socket PATH     App Server Unix socket
---registry PATH   lane-to-thread JSON registry
---timeout SECONDS socket request timeout
---version         CTRL release
+--socket PATH        App Server Unix socket
+--registry PATH      lane-to-thread JSON registry
+--blockers-file PATH open-blocker JSON store
+--timeout SECONDS    socket request timeout
+--version            CTRL release
 ```
 
 Defaults:
@@ -182,6 +183,66 @@ or:
   "threadId": "019f...",
   "turnId": "..."
 }
+```
+
+## Attention Banners
+
+`block`, `clear`, and `blockers` record and render human-attention state. They are
+local-only: they never open the App Server socket, so they work when the daemon is
+down — which is exactly when a blocker is most likely.
+
+The point of storing a blocker rather than printing a sentence is that state does not
+forget. An agent that compacts its context, restarts, or simply moves on stops
+repeating a banner it typed once; `ctrl blockers` still reports it.
+
+### `ctrl block`
+
+```bash
+ctrl block <lane> --what "<one line>" --needed "<the exact input or decision>"
+ctrl block <lane> --kind hold --what "<one line>" --needed "no input; <what is driving>"
+```
+
+`--kind blocker` (default) means a human is on the critical path. `--kind hold` means
+work is stopped but self-driving, so the reader can tell at a glance whether they are
+needed. `--who` names whose attention is required and defaults to `$CTRL_BLOCKER_WHO`.
+
+Re-raising an open lane updates `what` and `needed` but preserves the original
+`since`. How long a blocker has stood is the number that matters.
+
+```text
+████████████████████████████████████████
+██  BLOCKER — NEEDS AJ
+██  lane: lane-plato-agent-374
+██  what: Windows daemon red on PR head
+██  needed: ruling: merge over proven flake, or hold for fixture fix
+██  since: 2026-08-02 15:01 PDT
+████████████████████████████████████████
+```
+
+Agents must repeat the banner at the end of every turn while the blocker stands.
+
+### `ctrl clear`
+
+```bash
+ctrl clear <lane> --note "<what resolved it>"
+```
+
+Emits one `ALL-CLEAR` line and stops the repetition.
+
+### `ctrl blockers`
+
+```bash
+ctrl blockers          # render every open banner
+ctrl blockers --json   # machine-readable
+ctrl blockers --quiet  # exit code only
+```
+
+Exit codes: `0` no open blockers, `2` at least one open, `1` error. The `2` is what
+makes blockers visible outside an agent — a shell prompt, status bar, or health check
+can surface them without any agent cooperating:
+
+```bash
+ctrl blockers --quiet || notify-send "agent needs you"
 ```
 
 ## JSON Scripting

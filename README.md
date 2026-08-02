@@ -10,9 +10,11 @@ ctrl list --limit 10
 ctrl status issue-123
 ctrl spawn /path/to/worktree --lane issue-123
 ctrl send issue-123 "Implement the accepted scope and report proof"
+ctrl block issue-123 --what "CI red on head" --needed "ruling: merge or hold"
+ctrl blockers --quiet || notify-send "agent needs you"
 ```
 
-> **Project status:** early and operational. Version 0.1.0 supports the six commands documented below and has been exercised against Codex App Server 0.146.0 on Linux. The current release is intentionally smaller than the intended control plane; see [Current scope](#current-scope) before building automation around it.
+> **Project status:** early and operational. Version 0.1.0 supports the nine commands documented below and has been exercised against Codex App Server 0.146.0 on Linux. The current release is intentionally smaller than the intended control plane; see [Current scope](#current-scope) before building automation around it.
 
 ## What CTRL is
 
@@ -28,6 +30,7 @@ CTRL provides:
 - safe state-aware delivery: resume, start, or steer;
 - JSON output for both humans and automation;
 - recursive redaction of credential-shaped output;
+- attention banners: blockers stored as queryable state, not text an agent must remember to repeat;
 - a detailed operating skill for Hermes and Codex agents.
 
 CTRL is a client. It does not replace, supervise, restart, or reconfigure Codex App Server.

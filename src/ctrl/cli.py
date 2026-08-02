@@ -4,13 +4,25 @@ import argparse
 import json
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 from ctrl import __version__
 from ctrl.appserver import AppServerClient, ControlError
+from ctrl.blockers import (
+    KIND_BLOCKER,
+    VALID_KINDS,
+    clear_blocker,
+    raise_blocker,
+    read_blockers,
+    render_all,
+    render_all_clear,
+    render_banner,
+)
 from ctrl.operations import (
     VALID_REASONING_EFFORTS,
     list_thread_summaries,
+    normalize_lane,
     read_thread,
     resolve_thread,
     send_message,
@@ -21,6 +33,9 @@ from ctrl.redaction import redact_value
 
 DEFAULT_SOCKET = Path("~/.codex/app-server-control/app-server-control.sock").expanduser()
 DEFAULT_REGISTRY = Path("~/.local/state/ctrl/threads.json").expanduser()
+DEFAULT_BLOCKERS = Path("~/.local/state/ctrl/blockers.json").expanduser()
+
+BLOCKERS_PRESENT = 2
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,6 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"ctrl {__version__}")
     parser.add_argument("--socket", type=Path, default=DEFAULT_SOCKET)
     parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    parser.add_argument("--blockers-file", type=Path, default=DEFAULT_BLOCKERS)
     parser.add_argument("--timeout", type=float, default=15.0)
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -58,6 +74,36 @@ def build_parser() -> argparse.ArgumentParser:
     send = commands.add_parser("send", help="start or steer a thread turn")
     send.add_argument("thread", help="thread UUID or CTRL lane")
     send.add_argument("message", nargs="?")
+
+    block = commands.add_parser("block", help="raise an attention banner for a lane")
+    block.add_argument("lane", help="CTRL lane the blocker belongs to")
+    block.add_argument("--what", required=True, help="one line: what is wrong")
+    block.add_argument("--needed", required=True, help="the exact input or decision")
+    block.add_argument(
+        "--kind",
+        choices=VALID_KINDS,
+        default=KIND_BLOCKER,
+        help="blocker needs a human; hold is stopped but self-driving",
+    )
+    block.add_argument(
+        "--who",
+        help="whose attention is needed (default: $CTRL_BLOCKER_WHO)",
+    )
+
+    clear = commands.add_parser("clear", help="resolve a lane's blocker")
+    clear.add_argument("lane", help="CTRL lane to clear")
+    clear.add_argument("--note", help="what resolved it")
+
+    blockers = commands.add_parser(
+        "blockers",
+        help="show open blockers; exit 2 if any are open",
+    )
+    blockers.add_argument("--json", action="store_true", help="emit JSON")
+    blockers.add_argument(
+        "--quiet",
+        action="store_true",
+        help="print nothing; use the exit code only",
+    )
     return parser
 
 
@@ -94,11 +140,45 @@ def _doctor(socket_path: Path, registry_path: Path) -> dict[str, object]:
     }
 
 
+def _attention(args, blockers_path: Path) -> int:
+    """Local attention state; never touches the App Server."""
+    if args.command == "block":
+        record = raise_blocker(
+            blockers_path,
+            normalize_lane(args.lane),
+            what=args.what,
+            needed=args.needed,
+            kind=args.kind,
+            who=args.who,
+            now=datetime.now().astimezone(),
+        )
+        print(render_banner(normalize_lane(args.lane), record))
+        return 0
+
+    if args.command == "clear":
+        lane = normalize_lane(args.lane)
+        record = clear_blocker(blockers_path, lane)
+        if record is None:
+            raise ControlError(f"no open blocker for lane: {lane}")
+        print(render_all_clear(lane, record, args.note))
+        return 0
+
+    open_blockers = read_blockers(blockers_path)
+    if args.json:
+        print(json.dumps(open_blockers, indent=2, sort_keys=True))
+    elif not args.quiet:
+        print(render_all(open_blockers))
+    return BLOCKERS_PRESENT if open_blockers else 0
+
+
 def main() -> int:
     args = build_parser().parse_args()
     socket_path = args.socket.expanduser()
     registry_path = args.registry.expanduser()
+    blockers_path = args.blockers_file.expanduser()
     try:
+        if args.command in ("block", "clear", "blockers"):
+            return _attention(args, blockers_path)
         if args.command == "doctor":
             output = _doctor(socket_path, registry_path)
         else:
