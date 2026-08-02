@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import unicodedata
 from datetime import datetime
 from pathlib import Path
 from typing import Mapping
@@ -18,7 +17,6 @@ VALID_KINDS = (KIND_BLOCKER, KIND_HOLD)
 DEFAULT_WHO = "HUMAN"
 RECORD_FIELDS = frozenset({"kind", "owner", "what", "needed", "since", "who"})
 REQUIRED_RECORD_FIELDS = RECORD_FIELDS - {"owner"}
-UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
 
 
 def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -33,20 +31,9 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 def validate_single_line(field: str, value: object) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ControlError(f"{field} must be nonblank single-line text")
-    if any(
-        unicodedata.category(character) in UNSAFE_CATEGORIES for character in value
-    ):
+    if any(not 0x20 <= ord(character) <= 0x7E for character in value):
         raise ControlError(
-            f"{field} must be nonblank single-line text without control characters"
-        )
-    if any(
-        not character.isprintable()
-        or unicodedata.category(character).startswith("M")
-        or unicodedata.east_asian_width(character) in {"A", "F", "W"}
-        for character in value
-    ):
-        raise ControlError(
-            f"{field} must contain only printable single-cell characters"
+            f"{field} must contain only printable ASCII (U+0020 through U+007E)"
         )
     return value.strip()
 

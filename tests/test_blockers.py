@@ -129,6 +129,24 @@ def test_every_input_field_rejects_blank_multiline_and_control_text(
         )
 
 
+@pytest.mark.parametrize(
+    "invalid_value",
+    ["zero-cell-\u1161", "two-cell-\u4dc0"],
+)
+def test_eaw_neutral_non_ascii_text_is_rejected(
+    tmp_path: Path, invalid_value: str
+) -> None:
+    with pytest.raises(ControlError, match="printable ASCII"):
+        raise_blocker(
+            store(tmp_path),
+            "lane-alpha",
+            what=invalid_value,
+            needed="review exact head",
+            who="AJ",
+            now=MOMENT,
+        )
+
+
 def test_invalid_kind_rejected(tmp_path: Path) -> None:
     with pytest.raises(ControlError):
         raise_blocker(
@@ -246,7 +264,7 @@ def test_cli_rejects_forged_banner_newline_without_persisting(tmp_path: Path) ->
 
     assert result.returncode == 1
     assert result.stdout == ""
-    assert result.stderr.startswith("ctrl: what must be")
+    assert result.stderr.startswith("ctrl: what must contain only printable ASCII")
     assert result.stderr.count("\n") == 1
     assert not path.exists()
 
@@ -272,6 +290,8 @@ def test_cli_rejects_blank_owner_without_persisting(tmp_path: Path) -> None:
         "unsafe\x7f",
         "wide界",
         "combining e\u0301",
+        "zero-cell-\u1161",
+        "two-cell-\u4dc0",
     ],
 )
 def test_corrupt_loaded_record_field_fails_closed(

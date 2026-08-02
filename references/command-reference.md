@@ -192,14 +192,14 @@ or:
 live-state file. They never open the App Server socket or read the lane registry. The
 state survives session restarts, but it is not durable history; plandoc owns that.
 
-All owner/lane, `what`, `needed`, `since`, `who`, and resolution-note text is
-validated as nonblank, single-line, printable, and unambiguously one terminal cell
-per character. Wide, ambiguous-width, combining, and control characters are rejected
-before persistence or rendering. Loaded records receive the same validation, and a
-corrupt store fails closed. Stored owner keys and owner fields must use canonical
-`lane-...` identities; duplicate JSON keys and duplicate validated owners are rejected.
-Long accepted banner fields wrap inside the terminal-width border instead of relying
-on terminal auto-wrap.
+All owner/lane, `what`, `needed`, `since`, `who`, and resolution-note text must be
+nonblank printable ASCII, U+0020 through U+007E. Newlines, controls, and all non-ASCII
+text are rejected before persistence or rendering; outer ASCII spaces are stripped
+only after validation. Loaded records receive the same validation, and a corrupt
+store fails closed. Stored owner keys and owner fields must use canonical `lane-...`
+identities; duplicate JSON keys and duplicate validated owners are rejected. Long
+accepted banner fields wrap inside the terminal-width border instead of relying on
+terminal auto-wrap.
 
 ### `ctrl block`
 
