@@ -159,7 +159,7 @@ ctrl clear LANE [--note TEXT] [--json]
   -> ALL-CLEAR
 ```
 
-Every record and rendering carries `what`, `needed`, `since`, and `owner`. The normalized lane is the owner identity. `who` is the `BLOCKER` attention target only; `GATE-HOLD` remains self-driving and does not claim human attention. All persisted or rendered text must be nonblank printable ASCII, U+0020 through U+007E. Newlines, controls, and all non-ASCII text are rejected; outer ASCII spaces are stripped only after validation. Long accepted banner fields wrap inside the terminal-width border. A corrupt live-state file fails closed, including duplicate JSON keys or owner identities.
+Every record and rendering carries `what`, `needed`, `since`, and `owner`. The normalized lane is the owner identity. `who` is the `BLOCKER` attention target only; `GATE-HOLD` remains self-driving and does not claim human attention. All persisted or rendered text must be nonblank printable ASCII, U+0020 through U+007E. Newlines, controls, and all non-ASCII text are rejected; outer ASCII spaces are stripped only after validation. At terminal widths of 5 columns or more, long banner fields wrap inside the exact terminal-width border; rendering fails below 5 columns. A corrupt live-state file fails closed, including duplicate JSON keys or owner identities.
 
 The mandatory operating rules and live-state/durable-history boundary are declared once in the [operating model announcement protocol](references/operating-model.md#announcement-protocol). Apply that canonical section directly rather than restating it here.
 

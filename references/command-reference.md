@@ -198,8 +198,9 @@ text are rejected before persistence or rendering; outer ASCII spaces are stripp
 only after validation. Loaded records receive the same validation, and a corrupt
 store fails closed. Stored owner keys and owner fields must use canonical `lane-...`
 identities; duplicate JSON keys and duplicate validated owners are rejected. Long
-accepted banner fields wrap inside the terminal-width border instead of relying on
-terminal auto-wrap.
+accepted banner fields wrap inside the exact terminal-width border at widths of 5
+columns or more instead of relying on terminal auto-wrap. Rendering fails below 5
+columns.
 
 ### `ctrl block`
 

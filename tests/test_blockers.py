@@ -456,7 +456,7 @@ def test_renderers_revalidate_record_fields() -> None:
         render_all_clear("lane-alpha", record)
 
 
-def test_long_single_cell_fields_wrap_inside_banner_width(tmp_path: Path) -> None:
+def test_long_ascii_fields_wrap_inside_banner_width(tmp_path: Path) -> None:
     record = raise_blocker(
         store(tmp_path),
         "lane-alpha",
@@ -472,6 +472,42 @@ def test_long_single_cell_fields_wrap_inside_banner_width(tmp_path: Path) -> Non
     assert banner.count("z") == 200
     assert "\x1b" not in banner
     assert "\r" not in banner
+
+
+@pytest.mark.parametrize("width", [5, 10])
+def test_banner_honors_narrow_terminal_width(
+    tmp_path: Path, width: int
+) -> None:
+    record = raise_blocker(
+        store(tmp_path),
+        "lane-alpha",
+        what="z" * 40,
+        needed="lane-fix owns the active fix loop",
+        who="AJ",
+        now=MOMENT,
+    )
+
+    banner = render_banner("lane-alpha", record, width=width)
+
+    assert all(len(line) == width for line in banner.splitlines())
+    assert banner.count("z") == 40
+
+
+@pytest.mark.parametrize("width", [0, 1, 4])
+def test_banner_rejects_width_below_five(
+    tmp_path: Path, width: int
+) -> None:
+    record = raise_blocker(
+        store(tmp_path),
+        "lane-alpha",
+        what="w",
+        needed="n",
+        who="AJ",
+        now=MOMENT,
+    )
+
+    with pytest.raises(ControlError, match="at least 5"):
+        render_banner("lane-alpha", record, width=width)
 
 
 def test_long_all_clear_remains_one_injection_free_line(tmp_path: Path) -> None:

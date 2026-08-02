@@ -235,6 +235,8 @@ def _banner_rows(text: str, width: int) -> tuple[str, ...]:
 def render_banner(
     lane: str, record: Mapping[str, object], *, width: int = BANNER_WIDTH
 ) -> str:
+    if width < 5:
+        raise ControlError("banner width must be at least 5 columns")
     payload = announcement_payload(lane, record)
     if payload["type"] == "GATE-HOLD":
         headline = "GATE-HOLD"
@@ -247,12 +249,11 @@ def render_banner(
         f"SINCE: {payload['since']}",
         f"OWNER: {payload['owner']}",
     )
-    banner_width = max(width, 20)
-    border = "=" * banner_width
+    border = "=" * width
     return "\n".join(
         (
             border,
-            *(row for field in fields for row in _banner_rows(field, banner_width)),
+            *(row for field in fields for row in _banner_rows(field, width)),
             border,
         )
     )
