@@ -196,8 +196,10 @@ All owner/lane, `what`, `needed`, `since`, `who`, and resolution-note text is
 validated as nonblank, single-line, printable, and unambiguously one terminal cell
 per character. Wide, ambiguous-width, combining, and control characters are rejected
 before persistence or rendering. Loaded records receive the same validation, and a
-corrupt store fails closed. Long accepted banner fields wrap inside the terminal-width
-border instead of relying on terminal auto-wrap.
+corrupt store fails closed. Stored owner keys and owner fields must use canonical
+`lane-...` identities; duplicate JSON keys and duplicate validated owners are rejected.
+Long accepted banner fields wrap inside the terminal-width border instead of relying
+on terminal auto-wrap.
 
 ### `ctrl block`
 
@@ -207,15 +209,19 @@ ctrl block LANE --kind hold --what TEXT --needed TEXT [--who TEXT] [--json]
 ```
 
 `--kind blocker` (default) maps to `BLOCKER`. `--kind hold` maps to `GATE-HOLD`.
-The normalized lane is the `owner`; `--who` is only the attention target and defaults
-to `$CTRL_BLOCKER_WHO` or `HUMAN`. Both kinds carry `what`, `needed`, the original
-`since`, and `owner` in human and JSON output.
+The normalized lane is the `owner`. For `BLOCKER`, `--who` is the attention target
+and defaults to `$CTRL_BLOCKER_WHO` or `HUMAN`. `GATE-HOLD` is self-driving: its
+banner and JSON do not claim a human target, though the live record retains `who`
+for compatibility. For a hold, use `needed` to state the active fix-loop owner and
+action. Both kinds carry `what`, `needed`, the original `since`, and `owner` in
+human and JSON output.
 
 Re-raising an open lane updates `what` and `needed` but preserves the original
 `since`. How long a blocker has stood is the number that matters.
 
 Default output is a full-terminal-width banner. `--json` emits one machine-readable
-announcement object with `type`, `what`, `needed`, `since`, `owner`, and `who`.
+announcement object with `type`, `what`, `needed`, `since`, and `owner`; `BLOCKER`
+also includes its `who` attention target.
 
 ### `ctrl clear`
 
@@ -235,12 +241,13 @@ ctrl blockers --json   # machine-readable
 ctrl blockers --quiet  # exit code only
 ```
 
-Exit codes: `0` no open blockers, `2` at least one open, `1` error. The `2` is what
-makes blockers visible outside an agent — a shell prompt, status bar, or health check
-can surface them without any agent cooperating:
+Exit codes: `0` no open blockers, `2` at least one open, `1` error. Use `ctrl blockers`
+for a human-readable inspection. Scripts must handle all three codes explicitly;
+never treat every nonzero result as an open blocker because `1` means the store or
+command failed.
 
 ```bash
-ctrl blockers --quiet || notify-send "agent needs you"
+ctrl blockers
 ```
 
 JSON output maps each owner to its current announcement object and uses exact protocol

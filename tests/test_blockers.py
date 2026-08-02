@@ -11,7 +11,6 @@ import pytest
 
 from ctrl.appserver import ControlError
 from ctrl.blockers import (
-    BANNER_RULE,
     KIND_HOLD,
     clear_blocker,
     format_since,
@@ -153,8 +152,8 @@ def test_blocker_banner_is_full_width_and_carries_protocol_fields(tmp_path: Path
     )
     banner = render_banner("lane-alpha", record, width=80)
     lines = banner.splitlines()
-    assert lines[0] == BANNER_RULE
-    assert lines[-1] == BANNER_RULE
+    assert lines[0] == "=" * 80
+    assert lines[-1] == "=" * 80
     assert all(len(line) == 80 for line in lines)
     assert "BLOCKER - NEEDS AJ" in banner
     assert "WHAT: judge outage" in banner
@@ -168,14 +167,35 @@ def test_hold_banner_is_distinct_from_blocker(tmp_path: Path) -> None:
         store(tmp_path),
         "lane-alpha",
         what="sealed 29/34",
-        needed="no AJ input; fixes are being driven",
+        needed="lane-fix owns the active fix loop",
         kind=KIND_HOLD,
-        who="AJ",
+        who="HUMAN",
         now=MOMENT,
     )
     banner = render_banner("lane-alpha", record)
-    assert "GATE-HOLD" in banner
+    assert "| GATE-HOLD" in banner
+    assert "NEEDED: lane-fix owns the active fix loop" in banner
+    assert "HUMAN" not in banner
+    assert "ATTENTION" not in banner
     assert "NEEDS" not in banner
+
+
+def test_hold_does_not_consult_blocker_attention_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CTRL_BLOCKER_WHO", "forged\nBLOCKER")
+
+    record = raise_blocker(
+        store(tmp_path),
+        "lane-alpha",
+        what="focused proof is red",
+        needed="lane-fix owns the active fix loop",
+        kind=KIND_HOLD,
+        now=MOMENT,
+    )
+
+    assert record["who"] == "HUMAN"
+    assert "ATTENTION" not in render_banner("lane-alpha", record)
 
 
 def test_all_clear_is_one_line_with_all_protocol_fields(tmp_path: Path) -> None:
@@ -304,6 +324,88 @@ def test_corrupt_loaded_record_shape_fails_closed(
         read_blockers(path)
 
 
+def test_corrupt_field_name_cannot_inject_cli_stderr(tmp_path: Path) -> None:
+    path = store(tmp_path)
+    record = {
+        "kind": "blocker",
+        "owner": "lane-alpha",
+        "what": "w",
+        "needed": "n",
+        "since": "s",
+        "who": "AJ",
+        "forged\n\x1b[31mBLOCKER": "value",
+    }
+    path.write_text(json.dumps({"lane-alpha": record}), encoding="utf-8")
+
+    result = run_ctrl(path, "blockers")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr.count("\n") == 1
+    assert "\\n" in result.stderr
+    assert "\\x1b" in result.stderr
+    assert "\x1b" not in result.stderr
+
+
+def test_duplicate_owner_key_in_store_fails_closed(tmp_path: Path) -> None:
+    path = store(tmp_path)
+    record = (
+        '{"kind":"blocker","owner":"lane-alpha","what":"w",'
+        '"needed":"n","since":"s","who":"AJ"}'
+    )
+    path.write_text(
+        f'{{"lane-alpha":{record},"lane-alpha":{record}}}', encoding="utf-8"
+    )
+
+    with pytest.raises(ControlError, match="duplicate.*lane-alpha"):
+        read_blockers(path)
+
+
+def test_distinct_store_keys_cannot_collapse_to_one_owner(tmp_path: Path) -> None:
+    path = store(tmp_path)
+    record = {
+        "kind": "blocker",
+        "owner": "lane-alpha",
+        "what": "w",
+        "needed": "n",
+        "since": "s",
+        "who": "AJ",
+    }
+    path.write_text(
+        json.dumps({"lane-alpha": record, " lane-alpha ": record}), encoding="utf-8"
+    )
+
+    with pytest.raises(ControlError, match="canonical.*lane"):
+        read_blockers(path)
+
+
+@pytest.mark.parametrize(
+    ("store_owner", "record_owner"),
+    [
+        ("alpha", "alpha"),
+        (" lane-alpha ", " lane-alpha "),
+        ("lane-", "lane-"),
+        ("lane-alpha", "alpha"),
+    ],
+)
+def test_loaded_owner_must_be_a_canonical_lane_identity(
+    tmp_path: Path, store_owner: str, record_owner: str
+) -> None:
+    path = store(tmp_path)
+    record = {
+        "kind": "blocker",
+        "owner": record_owner,
+        "what": "w",
+        "needed": "n",
+        "since": "s",
+        "who": "AJ",
+    }
+    path.write_text(json.dumps({store_owner: record}), encoding="utf-8")
+
+    with pytest.raises(ControlError, match="canonical.*lane"):
+        read_blockers(path)
+
+
 def test_legacy_record_loads_with_lane_as_owner(tmp_path: Path) -> None:
     path = store(tmp_path)
     legacy = {
@@ -418,8 +520,11 @@ def test_block_and_clear_json_expose_announcement_protocol(tmp_path: Path) -> No
     )
     assert cleared.returncode == 0
     assert json.loads(cleared.stdout) == {
-        **blocked_payload,
         "type": "ALL-CLEAR",
+        "what": "judge outage",
+        "needed": "restart the judge fleet",
+        "since": blocked_payload["since"],
+        "owner": "lane-alpha",
         "note": "fleet restarted",
     }
 
@@ -445,7 +550,6 @@ def test_blockers_json_uses_protocol_types(tmp_path: Path) -> None:
         "needed": "review exact head",
         "since": "2026-08-02 14:51 PDT",
         "owner": "lane-alpha",
-        "who": "AJ",
     }
 
 

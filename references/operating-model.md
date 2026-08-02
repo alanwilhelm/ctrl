@@ -42,7 +42,7 @@ proposed
   → human-controlled integration/release
 ```
 
-CTRL 0.1.0 directly represents only thread creation and turn delivery. The coordinator must maintain the surrounding lifecycle explicitly.
+CTRL 0.1.0 directly represents thread creation, turn delivery, and current live announcement state. The coordinator must maintain the surrounding lifecycle explicitly.
 
 ## Ownership Invariants
 
@@ -91,15 +91,17 @@ CTRL stores aliases with one `lane-` prefix. Both `issue-123` and `lane-issue-12
 
 ## Announcement Protocol
 
-`ctrl block`, `ctrl clear`, and `ctrl blockers` implement the ANNOUNCE primitive. A `blocker` record renders as `BLOCKER`, a `hold` record renders as `GATE-HOLD`, and clearing either emits `ALL-CLEAR`. Every announcement carries `what`, `needed`, `since`, and `owner`; the normalized lane is the owner identity, while `who` is only the attention target.
+`ctrl block`, `ctrl clear`, and `ctrl blockers` implement the ANNOUNCE primitive. A `blocker` record renders as `BLOCKER`, a `hold` record renders as `GATE-HOLD`, and clearing either emits `ALL-CLEAR`. Every announcement carries `what`, `needed`, `since`, and `owner`; the normalized lane is the owner identity. `who` is an attention target only for `BLOCKER`. `GATE-HOLD` is self-driving and does not claim human attention; its `needed` field states the active fix-loop owner and action, though its stored record retains `who` for compatibility.
 
 The operating rules are:
 
-1. The coordinator renders every active `BLOCKER` or `GATE-HOLD` in the primary operator view and repeats it at the end of every coordinator turn until clear.
-2. All worker blockers escalate to the coordinator; worker-thread visibility is not live surfacing.
-3. Before amplification, independently verify a blocker that names a human.
-4. Emit `ALL-CLEAR` exactly once when the corresponding current state is cleared.
-5. `blockers.json` is current live state only; plandoc owns durable blocker history.
+1. The coordinator renders every active `BLOCKER` or `GATE-HOLD` as a full-width banner in the primary operator view.
+2. The coordinator repeats every active `BLOCKER` or `GATE-HOLD` at the end of every coordinator turn until clear.
+3. All worker blockers escalate to the coordinator; worker-thread visibility is not live surfacing.
+4. Before amplification, independently verify a blocker that names a human.
+5. Emit `ALL-CLEAR` exactly once when the corresponding current state is cleared.
+
+`blockers.json` is current live state only; plandoc owns durable blocker history.
 
 The live-state file exists so blockers survive session restarts and remain queryable. It is not a historical ledger: cleared entries are removed, and durable evidence or decision history belongs in plandoc. Attention commands do not use the App Server socket, thread registry, callbacks, plandoc writers, or tmux automation.
 

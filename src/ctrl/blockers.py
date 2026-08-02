@@ -10,7 +10,6 @@ from typing import Mapping
 from ctrl.appserver import ControlError
 
 BANNER_WIDTH = 80
-BANNER_RULE = "=" * BANNER_WIDTH
 
 KIND_BLOCKER = "blocker"
 KIND_HOLD = "hold"
@@ -20,6 +19,15 @@ DEFAULT_WHO = "HUMAN"
 RECORD_FIELDS = frozenset({"kind", "owner", "what", "needed", "since", "who"})
 REQUIRED_RECORD_FIELDS = RECORD_FIELDS - {"owner"}
 UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cs", "Zl", "Zp"})
+
+
+def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise ControlError(f"duplicate JSON key {key!r}")
+        value[key] = item
+    return value
 
 
 def validate_single_line(field: str, value: object) -> str:
@@ -43,6 +51,13 @@ def validate_single_line(field: str, value: object) -> str:
     return value.strip()
 
 
+def _validate_owner(value: object) -> str:
+    owner = validate_single_line("owner", value)
+    if value != owner or not owner.startswith("lane-") or owner == "lane-":
+        raise ControlError(f"owner {value!r} must be a canonical lane identity")
+    return owner
+
+
 def default_who() -> str:
     """Whose attention a blocker demands on this host."""
     value = os.environ.get("CTRL_BLOCKER_WHO")
@@ -52,7 +67,7 @@ def default_who() -> str:
 
 
 def _validate_record(owner: object, value: object) -> tuple[str, dict[str, str]]:
-    validated_owner = validate_single_line("owner", owner)
+    validated_owner = _validate_owner(owner)
     if not isinstance(value, dict):
         raise ControlError(f"record for {validated_owner!r} is not an object")
 
@@ -66,7 +81,7 @@ def _validate_record(owner: object, value: object) -> tuple[str, dict[str, str]]
     if unexpected:
         raise ControlError(
             f"record for {validated_owner!r} has unexpected fields: "
-            f"{', '.join(sorted(str(field) for field in unexpected))}"
+            f"{', '.join(repr(field) for field in sorted(unexpected))}"
         )
 
     kind = value["kind"]
@@ -74,7 +89,7 @@ def _validate_record(owner: object, value: object) -> tuple[str, dict[str, str]]
         choices = ", ".join(VALID_KINDS)
         raise ControlError(f"invalid kind {kind!r}; choose one of: {choices}")
 
-    record_owner = validate_single_line("owner", value.get("owner", validated_owner))
+    record_owner = _validate_owner(value.get("owner", validated_owner))
     if record_owner != validated_owner:
         raise ControlError(
             f"owner {record_owner!r} does not match store key {validated_owner!r}"
@@ -96,6 +111,8 @@ def _validate_store(value: object, path: Path) -> dict[str, dict[str, str]]:
     try:
         for owner, record in value.items():
             validated_owner, validated_record = _validate_record(owner, record)
+            if validated_owner in validated:
+                raise ControlError(f"duplicate owner identity {validated_owner!r}")
             validated[validated_owner] = validated_record
     except ControlError as exc:
         raise ControlError(f"invalid blocker store {path}: {exc}") from exc
@@ -104,12 +121,16 @@ def _validate_store(value: object, path: Path) -> dict[str, dict[str, str]]:
 
 def read_blockers(path: Path, *, required: bool = False) -> dict[str, dict[str, str]]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
+        value = json.loads(
+            path.read_text(encoding="utf-8"), object_pairs_hook=_unique_json_object
+        )
     except FileNotFoundError as exc:
         if required:
             raise ControlError(f"blocker store not found: {path}") from exc
         return {}
     except json.JSONDecodeError as exc:
+        raise ControlError(f"invalid blocker store {path}: {exc}") from exc
+    except ControlError as exc:
         raise ControlError(f"invalid blocker store {path}: {exc}") from exc
     return _validate_store(value, path)
 
@@ -144,12 +165,15 @@ def raise_blocker(
     if kind not in VALID_KINDS:
         choices = ", ".join(VALID_KINDS)
         raise ControlError(f"invalid kind {kind!r}; choose one of: {choices}")
-    owner = validate_single_line("owner", lane)
+    owner = _validate_owner(lane)
     validated_what = validate_single_line("what", what)
     validated_needed = validate_single_line("needed", needed)
-    attention_target = (
-        default_who() if who is None else validate_single_line("who", who)
-    )
+    if who is not None:
+        attention_target = validate_single_line("who", who)
+    elif kind == KIND_BLOCKER:
+        attention_target = default_who()
+    else:
+        attention_target = DEFAULT_WHO
 
     blockers = read_blockers(path)
     existing = blockers.get(owner)
@@ -172,7 +196,7 @@ def raise_blocker(
 
 
 def clear_blocker(path: Path, lane: str) -> dict[str, str] | None:
-    owner = validate_single_line("owner", lane)
+    owner = _validate_owner(lane)
     blockers = read_blockers(path)
     record = blockers.pop(owner, None)
     if record is None:
@@ -201,8 +225,9 @@ def announcement_payload(
         "needed": validated_record["needed"],
         "since": validated_record["since"],
         "owner": validated_owner,
-        "who": validated_record["who"],
     }
+    if announcement_type == "BLOCKER":
+        payload["who"] = validated_record["who"]
     if note is not None:
         payload["note"] = validate_single_line("note", note)
     return payload
@@ -225,7 +250,7 @@ def render_banner(
 ) -> str:
     payload = announcement_payload(lane, record)
     if payload["type"] == "GATE-HOLD":
-        headline = f"GATE-HOLD - ATTENTION {payload['who']}"
+        headline = "GATE-HOLD"
     else:
         headline = f"BLOCKER - NEEDS {payload['who']}"
     fields = (

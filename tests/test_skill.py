@@ -65,8 +65,11 @@ def test_skill_links_detailed_references() -> None:
         assert (SKILL.parent / reference).is_file()
 
 
-def test_skill_and_operating_model_define_live_announcement_rules() -> None:
-    paths = (SKILL, SKILL.parent / "references/operating-model.md")
+def test_operating_model_canonically_defines_live_announcement_rules() -> None:
+    skill = SKILL.read_text(encoding="utf-8")
+    operating_model = (
+        SKILL.parent / "references/operating-model.md"
+    ).read_text(encoding="utf-8")
     requirements = (
         "primary operator view",
         "end of every coordinator turn",
@@ -76,7 +79,18 @@ def test_skill_and_operating_model_define_live_announcement_rules() -> None:
         "blockers.json` is current live state only",
         "plandoc owns durable blocker history",
     )
-    for path in paths:
-        content = path.read_text(encoding="utf-8")
-        for requirement in requirements:
-            assert requirement in content
+    for requirement in requirements:
+        assert requirement in operating_model
+        assert requirement not in skill
+    assert "references/operating-model.md#announcement-protocol" in skill
+
+    rules = operating_model.split("The operating rules are:\n\n", 1)[1].split(
+        "\n\n", 1
+    )[0]
+    assert [line[:2] for line in rules.splitlines()] == ["1.", "2.", "3.", "4.", "5."]
+    assert "blockers.json" not in rules
+    assert (
+        "CTRL 0.1.0 directly represents thread creation, turn delivery, and current "
+        "live announcement state."
+    ) in operating_model
+    assert "represents only thread creation and turn delivery" not in operating_model

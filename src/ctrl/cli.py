@@ -90,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     block.add_argument(
         "--who",
-        help="whose attention is needed (default: $CTRL_BLOCKER_WHO)",
+        help="BLOCKER attention target (stored only for hold compatibility)",
     )
     block.add_argument("--json", action="store_true", help="emit JSON")
 

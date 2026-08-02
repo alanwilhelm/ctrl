@@ -12,7 +12,7 @@ ctrl spawn /path/to/worktree --lane issue-123
 ctrl send issue-123 "Implement the accepted scope and report proof"
 ctrl block issue-123 --what "CI red on head" --needed "ruling: merge or hold"
 ctrl clear issue-123 --note "exact head approved"
-ctrl blockers --quiet || notify-send "agent needs you"
+ctrl blockers
 ```
 
 > **Project status:** early and operational. Version 0.1.0 supports the nine commands documented below and has been exercised against Codex App Server 0.146.0 on Linux. The current release is intentionally smaller than the intended control plane; see [Current scope](#current-scope) before building automation around it.
@@ -288,7 +288,7 @@ timeout:  15 seconds
 
 Run `ctrl --help` or see the [complete command reference](references/command-reference.md).
 
-The existing attention commands implement one ANNOUNCE protocol: `blocker` maps to `BLOCKER`, `hold` maps to `GATE-HOLD`, and `clear` maps to `ALL-CLEAR`. Each announcement carries `what`, `needed`, `since`, and `owner`; the normalized lane is the owner identity, while `who` is only the attention target. Add `--json` to `block`, `clear`, or `blockers` for machine-readable output.
+The existing attention commands implement one ANNOUNCE protocol: `blocker` maps to `BLOCKER`, `hold` maps to self-driving `GATE-HOLD`, and `clear` maps to `ALL-CLEAR`. Each announcement carries `what`, `needed`, `since`, and `owner`; the normalized lane is the owner identity, while `who` is only a `BLOCKER` attention target. Add `--json` to `block`, `clear`, or `blockers` for machine-readable output.
 
 ## Model and reasoning policy
 

@@ -159,15 +159,9 @@ ctrl clear LANE [--note TEXT] [--json]
   -> ALL-CLEAR
 ```
 
-Every record and rendering carries `what`, `needed`, `since`, and `owner`. The normalized lane is the owner identity; `who` is only the attention target. All persisted or rendered text must be nonblank, single-line, printable, and unambiguously one terminal cell per character. Wide, ambiguous-width, combining, and control characters are rejected. Long accepted banner fields wrap inside the terminal-width border. A corrupt live-state file fails closed.
+Every record and rendering carries `what`, `needed`, `since`, and `owner`. The normalized lane is the owner identity. `who` is the `BLOCKER` attention target only; `GATE-HOLD` remains self-driving and does not claim human attention. All persisted or rendered text must be nonblank, single-line, printable, and unambiguously one terminal cell per character. Wide, ambiguous-width, combining, and control characters are rejected. Long accepted banner fields wrap inside the terminal-width border. A corrupt live-state file fails closed, including duplicate JSON keys or owner identities.
 
-The operating rules are mandatory:
-
-1. The coordinator renders each active `BLOCKER` or `GATE-HOLD` in the primary operator view and repeats it at the end of every coordinator turn until clear.
-2. All worker blockers escalate to the coordinator; visibility in a worker thread is not live surfacing.
-3. Before amplification, independently verify a blocker that names a human.
-4. Emit `ALL-CLEAR` exactly once when the corresponding live state clears.
-5. `blockers.json` is current live state only; plandoc owns durable blocker history.
+The mandatory operating rules and live-state/durable-history boundary are declared once in the [operating model announcement protocol](references/operating-model.md#announcement-protocol). Apply that canonical section directly rather than restating it here.
 
 ## Preflight Before Any Stateful Command
 
