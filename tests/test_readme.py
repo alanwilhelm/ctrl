@@ -27,6 +27,7 @@ def test_public_readme_has_clear_product_and_safety_sections() -> None:
 
 
 def test_readme_documents_only_current_commands() -> None:
+    command_reference = ROOT / "references/command-reference.md"
     content = README.read_text(encoding="utf-8")
     for command in (
         "ctrl doctor",
@@ -35,10 +36,17 @@ def test_readme_documents_only_current_commands() -> None:
         "ctrl read",
         "ctrl spawn",
         "ctrl send",
+        "ctrl block",
+        "ctrl clear",
+        "ctrl blockers",
     ):
         assert command in content
-    for unsupported in ("ctrl admit", "ctrl stop", "ctrl verify"):
+    for unsupported in ("ctrl admit", "ctrl announce", "ctrl stop", "ctrl verify"):
         assert unsupported not in content
+    for path in (README, command_reference):
+        documentation = path.read_text(encoding="utf-8")
+        assert "notify-send" not in documentation
+        assert "blockers --quiet ||" not in documentation
 
 
 def test_package_metadata_points_at_public_docs_and_license() -> None:

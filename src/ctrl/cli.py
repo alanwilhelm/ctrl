@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -12,12 +13,14 @@ from ctrl.appserver import AppServerClient, ControlError
 from ctrl.blockers import (
     KIND_BLOCKER,
     VALID_KINDS,
+    announcement_payload,
     clear_blocker,
     raise_blocker,
     read_blockers,
     render_all,
     render_all_clear,
     render_banner,
+    validate_single_line,
 )
 from ctrl.operations import (
     VALID_REASONING_EFFORTS,
@@ -87,12 +90,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     block.add_argument(
         "--who",
-        help="whose attention is needed (default: $CTRL_BLOCKER_WHO)",
+        help="BLOCKER attention target (stored only for hold compatibility)",
     )
+    block.add_argument("--json", action="store_true", help="emit JSON")
 
     clear = commands.add_parser("clear", help="resolve a lane's blocker")
     clear.add_argument("lane", help="CTRL lane to clear")
     clear.add_argument("--note", help="what resolved it")
+    clear.add_argument("--json", action="store_true", help="emit JSON")
 
     blockers = commands.add_parser(
         "blockers",
@@ -140,34 +145,51 @@ def _doctor(socket_path: Path, registry_path: Path) -> dict[str, object]:
     }
 
 
-def _attention(args, blockers_path: Path) -> int:
+def _attention(args: argparse.Namespace, blockers_path: Path) -> int:
     """Local attention state; never touches the App Server."""
     if args.command == "block":
+        owner = normalize_lane(validate_single_line("owner", args.lane))
         record = raise_blocker(
             blockers_path,
-            normalize_lane(args.lane),
+            owner,
             what=args.what,
             needed=args.needed,
             kind=args.kind,
             who=args.who,
             now=datetime.now().astimezone(),
         )
-        print(render_banner(normalize_lane(args.lane), record))
+        if args.json:
+            print(json.dumps(announcement_payload(owner, record), indent=2, sort_keys=True))
+        else:
+            width = shutil.get_terminal_size(fallback=(80, 24)).columns
+            print(render_banner(owner, record, width=width))
         return 0
 
     if args.command == "clear":
-        lane = normalize_lane(args.lane)
+        lane = normalize_lane(validate_single_line("owner", args.lane))
+        note = None if args.note is None else validate_single_line("note", args.note)
         record = clear_blocker(blockers_path, lane)
         if record is None:
             raise ControlError(f"no open blocker for lane: {lane}")
-        print(render_all_clear(lane, record, args.note))
+        if args.json:
+            payload = announcement_payload(
+                lane, record, all_clear=True, note=note
+            )
+            print(json.dumps(payload, indent=2, sort_keys=True))
+        else:
+            print(render_all_clear(lane, record, note))
         return 0
 
     open_blockers = read_blockers(blockers_path)
     if args.json:
-        print(json.dumps(open_blockers, indent=2, sort_keys=True))
+        payloads = {
+            owner: announcement_payload(owner, record)
+            for owner, record in open_blockers.items()
+        }
+        print(json.dumps(payloads, indent=2, sort_keys=True))
     elif not args.quiet:
-        print(render_all(open_blockers))
+        width = shutil.get_terminal_size(fallback=(80, 24)).columns
+        print(render_all(open_blockers, width=width))
     return BLOCKERS_PRESENT if open_blockers else 0
 
 
