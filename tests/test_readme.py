@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+import tomllib
+from pathlib import Path
+
+ROOT = Path(__file__).parents[1]
+README = ROOT / "README.md"
+
+
+def test_public_readme_has_clear_product_and_safety_sections() -> None:
+    content = README.read_text(encoding="utf-8")
+    for heading in (
+        "# CTRL",
+        "## What CTRL is",
+        "## Quick start",
+        "## Commands",
+        "## Safety model",
+        "## Architecture",
+        "## Current scope",
+        "## Development",
+        "## License",
+    ):
+        assert heading in content
+    assert "persistent Codex App Server threads" in content
+    assert "one controller per thread" in content
+    assert "dangerFullAccess" in content
+
+
+def test_readme_documents_only_current_commands() -> None:
+    content = README.read_text(encoding="utf-8")
+    for command in (
+        "ctrl doctor",
+        "ctrl list",
+        "ctrl status",
+        "ctrl read",
+        "ctrl spawn",
+        "ctrl send",
+    ):
+        assert command in content
+    for unsupported in ("ctrl admit", "ctrl stop", "ctrl verify"):
+        assert unsupported not in content
+
+
+def test_package_metadata_points_at_public_docs_and_license() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
+    assert project["readme"] == "README.md"
+    assert project["license"] == {"file": "LICENSE"}
+    assert (ROOT / "LICENSE").is_file()
