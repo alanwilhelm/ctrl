@@ -2,7 +2,7 @@
 
 **A small, scriptable control plane for persistent Codex App Server threads.**
 
-CTRL gives humans and coordinating agents one consistent command-line interface for discovering, inspecting, creating, and messaging persistent Codex workers. It talks directly to the local managed Codex App Server over its Unix socket and returns structured JSON.
+CTRL gives humans and coordinating agents one consistent command-line interface for discovering, inspecting, creating, and messaging persistent Codex workers, plus a socket-independent live announcement protocol for blockers and gate holds.
 
 ```bash
 ctrl doctor
@@ -11,6 +11,7 @@ ctrl status issue-123
 ctrl spawn /path/to/worktree --lane issue-123
 ctrl send issue-123 "Implement the accepted scope and report proof"
 ctrl block issue-123 --what "CI red on head" --needed "ruling: merge or hold"
+ctrl clear issue-123 --note "exact head approved"
 ctrl blockers --quiet || notify-send "agent needs you"
 ```
 
@@ -28,9 +29,9 @@ CTRL provides:
 - memorable lane aliases for newly created threads;
 - explicit model and reasoning selection at thread creation;
 - safe state-aware delivery: resume, start, or steer;
-- JSON output for both humans and automation;
+- human-first output with explicit JSON forms for automation;
 - recursive redaction of credential-shaped output;
-- attention banners: blockers stored as queryable state, not text an agent must remember to repeat;
+- attention banners backed by restart-safe current live state;
 - a detailed operating skill for Hermes and Codex agents.
 
 CTRL is a client. It does not replace, supervise, restart, or reconfigure Codex App Server.
@@ -262,12 +263,16 @@ The result reports `started` or `steered` and the turn ID. That proves receipt, 
 | `ctrl read THREAD` | Return the full thread payload | no | no |
 | `ctrl spawn REPO --lane NAME` | Create and register a persistent thread | yes | no |
 | `ctrl send THREAD MESSAGE` | Resume/start/steer a turn | yes | yes |
+| `ctrl block LANE --what TEXT --needed TEXT` | Raise a `BLOCKER` or `GATE-HOLD` | no | no |
+| `ctrl clear LANE [--note TEXT]` | Emit one `ALL-CLEAR` and clear live state | no | no |
+| `ctrl blockers` | Render or query current live announcements | no | no |
 
 Global options precede the command:
 
 ```text
 --socket PATH      App Server Unix socket
 --registry PATH    lane-to-thread JSON registry
+--blockers-file PATH current live blocker state
 --timeout SECONDS  request timeout
 --version          CTRL version
 ```
@@ -277,10 +282,13 @@ Defaults:
 ```text
 socket:   ~/.codex/app-server-control/app-server-control.sock
 registry: ~/.local/state/ctrl/threads.json
+blockers: ~/.local/state/ctrl/blockers.json
 timeout:  15 seconds
 ```
 
 Run `ctrl --help` or see the [complete command reference](references/command-reference.md).
+
+The existing attention commands implement one ANNOUNCE protocol: `blocker` maps to `BLOCKER`, `hold` maps to `GATE-HOLD`, and `clear` maps to `ALL-CLEAR`. Each announcement carries `what`, `needed`, `since`, and `owner`; the normalized lane is the owner identity, while `who` is only the attention target. Add `--json` to `block`, `clear`, or `blockers` for machine-readable output.
 
 ## Model and reasoning policy
 
@@ -358,6 +366,10 @@ That policy is intentional for trusted workers in isolated worktrees. It also me
 
 An accepted message, idle thread, or worker final response does not prove that code is correct. Inspect the repository and rerun required checks independently.
 
+### Live announcement state
+
+`blockers.json` keeps only the current open set so a restart cannot bury a blocker. It is not durable blocker history: CTRL owns live surfacing, while plandoc owns durable records. Invalid input or a corrupt live-state record fails closed before rendering.
+
 ### Redaction
 
 CTRL recursively redacts credential-shaped keys and text before printing JSON. Redaction is defense in depth, not a reason to publish complete private transcripts.
@@ -374,6 +386,7 @@ CTRL recursively redacts credential-shaped keys and text before printing JSON. R
 │ CTRL                                                     │
 │                                                          │
 │ cli.py        command parsing and output                  │
+│ blockers.py   current live state + announcement rendering │
 │ operations.py thread/lane/start/steer behavior            │
 │ appserver.py  Unix socket + WebSocket JSON-RPC            │
 │ redaction.py  output sanitization                         │
@@ -439,6 +452,7 @@ The attached TUI is interactive, not a passive dashboard. Decide whether CTRL or
 - explicit model and reasoning configuration;
 - automatic resume during message delivery;
 - active-turn steering and idle-turn start;
+- restart-safe current blocker state and live announcement rendering;
 - recursive credential-shaped redaction;
 - structured JSON output;
 - Hermes and Codex operating skill.
@@ -525,6 +539,7 @@ ctrl/
 │   └── troubleshooting.md
 ├── src/ctrl/
 │   ├── appserver.py
+│   ├── blockers.py
 │   ├── cli.py
 │   ├── operations.py
 │   └── redaction.py

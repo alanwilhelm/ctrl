@@ -18,7 +18,7 @@ def test_skill_is_detailed_and_valid() -> None:
     assert 10_000 <= len(content) <= 100_000
 
 
-def test_skill_documents_the_real_v010_surface_and_safety_contract() -> None:
+def test_skill_documents_the_real_surface_and_safety_contract() -> None:
     content = SKILL.read_text(encoding="utf-8")
     for command in (
         "ctrl doctor",
@@ -27,6 +27,9 @@ def test_skill_documents_the_real_v010_surface_and_safety_contract() -> None:
         "ctrl read",
         "ctrl spawn",
         "ctrl send",
+        "ctrl block",
+        "ctrl clear",
+        "ctrl blockers",
     ):
         assert command in content
     for required in (
@@ -40,11 +43,13 @@ def test_skill_documents_the_real_v010_surface_and_safety_contract() -> None:
         "Dragonslayer",
         "Verification Checklist",
         "Common Pitfalls",
+        "Announcement Protocol",
     ):
         assert required in content
     assert "ctrl admit" not in content
     assert "ctrl stop" not in content
     assert "ctrl verify" not in content
+    assert "ctrl announce" not in content
     assert "codex-ctrl" not in content
     assert "ctrl-protocol" not in content
 
@@ -58,3 +63,20 @@ def test_skill_links_detailed_references() -> None:
     ):
         assert reference in content
         assert (SKILL.parent / reference).is_file()
+
+
+def test_skill_and_operating_model_define_live_announcement_rules() -> None:
+    paths = (SKILL, SKILL.parent / "references/operating-model.md")
+    requirements = (
+        "primary operator view",
+        "end of every coordinator turn",
+        "worker blockers escalate to the coordinator",
+        "independently verify a blocker that names a human",
+        "ALL-CLEAR` exactly once",
+        "blockers.json` is current live state only",
+        "plandoc owns durable blocker history",
+    )
+    for path in paths:
+        content = path.read_text(encoding="utf-8")
+        for requirement in requirements:
+            assert requirement in content

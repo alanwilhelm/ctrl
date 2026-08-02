@@ -42,6 +42,7 @@ Defaults:
 ```text
 --socket   ~/.codex/app-server-control/app-server-control.sock
 --registry ~/.local/state/ctrl/threads.json
+--blockers-file ~/.local/state/ctrl/blockers.json
 --timeout  15
 ```
 
@@ -187,47 +188,44 @@ or:
 
 ## Attention Banners
 
-`block`, `clear`, and `blockers` record and render human-attention state. They are
-local-only: they never open the App Server socket, so they work when the daemon is
-down — which is exactly when a blocker is most likely.
+`block`, `clear`, and `blockers` implement the ANNOUNCE protocol through one current
+live-state file. They never open the App Server socket or read the lane registry. The
+state survives session restarts, but it is not durable history; plandoc owns that.
 
-The point of storing a blocker rather than printing a sentence is that state does not
-forget. An agent that compacts its context, restarts, or simply moves on stops
-repeating a banner it typed once; `ctrl blockers` still reports it.
+All owner/lane, `what`, `needed`, `since`, `who`, and resolution-note text is
+validated as nonblank, single-line, printable, and unambiguously one terminal cell
+per character. Wide, ambiguous-width, combining, and control characters are rejected
+before persistence or rendering. Loaded records receive the same validation, and a
+corrupt store fails closed. Long accepted banner fields wrap inside the terminal-width
+border instead of relying on terminal auto-wrap.
 
 ### `ctrl block`
 
 ```bash
-ctrl block <lane> --what "<one line>" --needed "<the exact input or decision>"
-ctrl block <lane> --kind hold --what "<one line>" --needed "no input; <what is driving>"
+ctrl block LANE --what TEXT --needed TEXT [--who TEXT] [--json]
+ctrl block LANE --kind hold --what TEXT --needed TEXT [--who TEXT] [--json]
 ```
 
-`--kind blocker` (default) means a human is on the critical path. `--kind hold` means
-work is stopped but self-driving, so the reader can tell at a glance whether they are
-needed. `--who` names whose attention is required and defaults to `$CTRL_BLOCKER_WHO`.
+`--kind blocker` (default) maps to `BLOCKER`. `--kind hold` maps to `GATE-HOLD`.
+The normalized lane is the `owner`; `--who` is only the attention target and defaults
+to `$CTRL_BLOCKER_WHO` or `HUMAN`. Both kinds carry `what`, `needed`, the original
+`since`, and `owner` in human and JSON output.
 
 Re-raising an open lane updates `what` and `needed` but preserves the original
 `since`. How long a blocker has stood is the number that matters.
 
-```text
-████████████████████████████████████████
-██  BLOCKER — NEEDS AJ
-██  lane: lane-plato-agent-374
-██  what: Windows daemon red on PR head
-██  needed: ruling: merge over proven flake, or hold for fixture fix
-██  since: 2026-08-02 15:01 PDT
-████████████████████████████████████████
-```
-
-Agents must repeat the banner at the end of every turn while the blocker stands.
+Default output is a full-terminal-width banner. `--json` emits one machine-readable
+announcement object with `type`, `what`, `needed`, `since`, `owner`, and `who`.
 
 ### `ctrl clear`
 
 ```bash
-ctrl clear <lane> --note "<what resolved it>"
+ctrl clear LANE [--note TEXT] [--json]
 ```
 
-Emits one `ALL-CLEAR` line and stops the repetition.
+Emits one `ALL-CLEAR` line carrying `what`, `needed`, `since`, and `owner`, plus the
+optional resolution note, then removes the current live state. `--json` emits the same
+fields as an object.
 
 ### `ctrl blockers`
 
@@ -244,6 +242,10 @@ can surface them without any agent cooperating:
 ```bash
 ctrl blockers --quiet || notify-send "agent needs you"
 ```
+
+JSON output maps each owner to its current announcement object and uses exact protocol
+types: `BLOCKER` or `GATE-HOLD`. See the [operating model](operating-model.md#announcement-protocol)
+for repetition, escalation, verification, exactly-once clear, and plandoc ownership.
 
 ## JSON Scripting
 

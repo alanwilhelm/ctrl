@@ -35,9 +35,12 @@ def test_readme_documents_only_current_commands() -> None:
         "ctrl read",
         "ctrl spawn",
         "ctrl send",
+        "ctrl block",
+        "ctrl clear",
+        "ctrl blockers",
     ):
         assert command in content
-    for unsupported in ("ctrl admit", "ctrl stop", "ctrl verify"):
+    for unsupported in ("ctrl admit", "ctrl announce", "ctrl stop", "ctrl verify"):
         assert unsupported not in content
 
 

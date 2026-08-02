@@ -16,7 +16,7 @@ Selects admitted work, checks repository state, creates isolated worktrees, assi
 
 ### CTRL
 
-Provides the deterministic local interface to App Server. It translates operator commands into protocol calls and records ergonomic lane aliases. It does not supply judgment or authorization.
+Provides the deterministic local interface to App Server and owns live announcement surfacing. It translates operator commands into protocol calls, records ergonomic lane aliases, and keeps restart-safe current blocker state. It does not supply judgment or authorization.
 
 ### Codex App Server
 
@@ -88,6 +88,20 @@ new
 ```
 
 CTRL stores aliases with one `lane-` prefix. Both `issue-123` and `lane-issue-123` resolve the same way at the command line.
+
+## Announcement Protocol
+
+`ctrl block`, `ctrl clear`, and `ctrl blockers` implement the ANNOUNCE primitive. A `blocker` record renders as `BLOCKER`, a `hold` record renders as `GATE-HOLD`, and clearing either emits `ALL-CLEAR`. Every announcement carries `what`, `needed`, `since`, and `owner`; the normalized lane is the owner identity, while `who` is only the attention target.
+
+The operating rules are:
+
+1. The coordinator renders every active `BLOCKER` or `GATE-HOLD` in the primary operator view and repeats it at the end of every coordinator turn until clear.
+2. All worker blockers escalate to the coordinator; worker-thread visibility is not live surfacing.
+3. Before amplification, independently verify a blocker that names a human.
+4. Emit `ALL-CLEAR` exactly once when the corresponding current state is cleared.
+5. `blockers.json` is current live state only; plandoc owns durable blocker history.
+
+The live-state file exists so blockers survive session restarts and remain queryable. It is not a historical ledger: cleared entries are removed, and durable evidence or decision history belongs in plandoc. Attention commands do not use the App Server socket, thread registry, callbacks, plandoc writers, or tmux automation.
 
 ## Coordinator Loop
 
