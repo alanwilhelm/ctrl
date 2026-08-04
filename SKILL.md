@@ -178,6 +178,12 @@ Complete every item:
 9. Run `ctrl list --cwd /absolute/worktree/path` to detect an existing reusable thread.
 10. Prefer resuming or messaging the owned existing thread over creating a duplicate.
 
+Apply the canonical [issue-thread routing rules](references/operating-model.md#issue-thread-routing)
+before deciding that a thread is reusable or that parallel dispatch is safe.
+CTRL defaults to one bounded issue per thread; standing lane aliases do not
+collapse unrelated work into one worker context, and additive dispatch does not
+authorize interruption of existing work.
+
 Git discovery is prerequisite evidence, not bureaucracy:
 
 ```bash
@@ -292,7 +298,8 @@ Changing the policy for a new thread does not retroactively change existing thre
 
 ## Safe Worker Creation
 
-Only spawn into an existing directory. Prefer a dedicated issue worktree, never the broad workspace when the task is supposed to be isolated.
+Only spawn into an existing directory. Prefer a dedicated issue thread and
+worktree, never the broad workspace when the task is supposed to be isolated.
 
 ```bash
 ctrl spawn /path/to/example-worktrees/issue-123 \

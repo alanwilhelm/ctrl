@@ -55,6 +55,32 @@ CTRL 0.1.0 directly represents thread creation, turn delivery, and current live 
 7. Worker completion prose does not imply verification.
 8. Merge, publish, deploy, outbound communication, and destructive operations remain separate authority gates.
 
+## Issue-Thread Routing
+
+1. The default execution identity is one admitted GitHub issue or other bounded
+   work item per App Server thread. When the work item changes, create a fresh
+   issue-specific thread and isolated worktree instead of routing unrelated work
+   through an idle standing repository lane.
+2. A lane alias is an ergonomic lookup label, not execution authority or work
+   identity. The App Server thread ID remains authoritative.
+3. Reuse an existing thread only for the same work item, compatible goal,
+   owned branch/worktree, and controller. An unloaded thread is reusable only
+   under those same conditions.
+4. Separate issue threads may work in the same repository concurrently only
+   after the coordinator proves isolated worktrees, disjoint file and contract
+   ownership, and non-conflicting integration order.
+5. New dispatch is additive. It must not stop, cancel, interrupt, replace, or
+   redirect any already-authorized active thread unless the current instruction
+   explicitly names that thread and action. A negative routing instruction such
+   as "do not dispatch issue X" forbids creating another worker for X; it does
+   not authorize stopping existing X work.
+6. A board status such as `Blocked` is not thread state. Surface a blocked
+   thread only from current App Server status/readback and the worker's exact
+   blocker or failed gate.
+7. Dispatch proof requires the created thread ID, delivered turn ID, and a
+   status/readback that binds the intended work item and execution state.
+   Accepted or queued input alone is not proof that work started.
+
 ## Model Policy
 
 Use Sol for meaningful reasoning roles:
@@ -110,15 +136,16 @@ The live-state file exists so blockers survive session restarts and remain query
 1. Inspect accepted planning artifact and live repository state.
 2. Select one smallest independently verifiable unit.
 3. Establish a dedicated branch/worktree.
-4. Confirm no existing thread should be reused.
-5. Spawn a worker with explicit model and reasoning.
+4. Reuse a thread only when it already owns this exact work item and worktree.
+5. Otherwise spawn an issue-specific worker with explicit model and reasoning.
 6. Verify returned cwd/model/reasoning/thread ID.
 7. Send one bounded instruction.
-8. Observe through read-only status/read operations.
-9. Accept one completion report.
-10. Independently inspect diffs, tests, branch, and commit state.
-11. Escalate merge/release decisions to their owner.
-12. Keep the thread for continuation when the work stream remains active.
+8. Read back the delivered turn and current execution state.
+9. Observe through read-only status/read operations.
+10. Accept one completion report.
+11. Independently inspect diffs, tests, branch, and commit state.
+12. Escalate merge/release decisions to their owner.
+13. Keep the thread for continuation only while the same work item remains active.
 
 ## Observer Versus Controller
 
