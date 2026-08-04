@@ -94,3 +94,24 @@ def test_operating_model_canonically_defines_live_announcement_rules() -> None:
         "live announcement state."
     ) in operating_model
     assert "represents only thread creation and turn delivery" not in operating_model
+
+
+def test_operating_model_canonically_defines_issue_thread_routing() -> None:
+    skill = SKILL.read_text(encoding="utf-8")
+    operating_model = (
+        SKILL.parent / "references/operating-model.md"
+    ).read_text(encoding="utf-8")
+
+    normalized_operating_model = " ".join(operating_model.split())
+
+    assert "references/operating-model.md#issue-thread-routing" in skill
+    assert "## Issue-Thread Routing" in operating_model
+    for requirement in (
+        "one admitted GitHub issue",
+        "idle standing repository lane",
+        "New dispatch is additive",
+        "does not authorize stopping existing X work",
+        "A board status such as `Blocked` is not thread state",
+        "created thread ID, delivered turn ID",
+    ):
+        assert requirement in normalized_operating_model
